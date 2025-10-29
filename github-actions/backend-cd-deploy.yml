@@ -1,0 +1,97 @@
+name: Backend CD - Build, Push & Deploy to Kubernetes
+
+on:
+  workflow_run:
+    workflows: ["Backend CI - Build, Test & Security Scan"]
+    types:
+      - completed
+
+jobs:
+  build-and-push:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    name: Build and Push Docker Image (Backend)
+    outputs:
+      image_tag: ${{ steps.build.outputs.image_tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to DigitalOcean Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: registry.digitalocean.com
+          username: doctl
+          password: ${{ secrets.DO_ACCESS_TOKEN }}
+
+      - name: Build and Push Docker Image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: registry.digitalocean.com/swipebay-registry/backend:${{ github.sha }}
+
+      - name: Set image tag output
+        run: echo "image_tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: Deploy to Kubernetes Cluster (Backend)
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    timeout-minutes: 20
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: 'v1.30.0'
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_FILE }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy new image to backend namespace
+        run: |
+          IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
+          IMAGE=registry.digitalocean.com/swipebay-registry/backend:$IMAGE_TAG
+          NAMESPACE=backend
+          DEPLOYMENT=test-backendwithfront
+
+          echo "Updating deployment '$DEPLOYMENT' in namespace '$NAMESPACE'..."
+          kubectl -n $NAMESPACE set image deployment/$DEPLOYMENT backend-test=$IMAGE --record
+          kubectl -n $NAMESPACE rollout status deployment/$DEPLOYMENT
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "### Backend Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Namespace: backend" >> $GITHUB_STEP_SUMMARY
+          echo "- Deployment: test-backendwithfront" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: registry.digitalocean.com/swipebay-registry/backend:${{ needs.build-and-push.outputs.image_tag }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Slack (Success)
+        if: success()
+        run: |
+          IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"🚀 *Backend Deployment Succeeded!* \n• Namespace: *backend* \n• Deployment: *test-backendwithfront* \n• Image: *backend:${IMAGE_TAG}* \n• Triggered by: *${{ github.actor }}* \n• View Logs: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here>\"}" \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Slack (Failure)
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data "{\"text\":\"❌ *Backend Deployment Failed!*  \nCheck logs: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>\"}" \
+          ${{ secrets.SLACK_WEBHOOK_URL }}
+
