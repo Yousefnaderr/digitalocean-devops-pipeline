@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: invoice-reminder
+  namespace: infra-billing
+spec:
+  # Runs at 8:00 AM UTC on 10th 22nd and 29th of each month
+  schedule: "0 8 10,22,29 * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: invoice-uploader
+              image: registry.digitalocean.com/swipebay-registry/invoice-pdf-image:latest
+              imagePullPolicy: Always
+              envFrom:
+                - secretRef:
+                    name: billing-secrets 
+          restartPolicy: OnFailure
+

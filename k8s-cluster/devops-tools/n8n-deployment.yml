@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: devops-tools
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+    spec:
+      securityContext:
+        fsGroup: 1000   
+      containers:
+        - name: n8n
+          image: n8nio/n8n:latest
+          ports:
+            - containerPort: 5678
+          env:
+            - name: N8N_BASIC_AUTH_ACTIVE
+              value: "true"
+            - name: N8N_BASIC_AUTH_USER
+              value: "admin"
+            - name: N8N_BASIC_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secrets
+                  key: password
+            - name: WEBHOOK_URL
+              value: "https://n8n.swipebay.tech"
+          volumeMounts:
+            - name: n8n-storage
+              mountPath: /home/node/.n8n
+      volumes:
+        - name: n8n-storage
+          persistentVolumeClaim:
+            claimName: n8n-pvc
+

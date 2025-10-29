@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n-ingress
+  namespace: devops-tools
+  annotations:
+     nginx.ingress.kubernetes.io/rewrite-target: /
+     cert-manager.io/cluster-issuer: letsencrypt-production
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - n8n.swipebay.tech 
+      secretName: n8n-tls
+  rules:
+    - host: n8n.swipebay.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n-service
+                port:
+                  number: 80
+

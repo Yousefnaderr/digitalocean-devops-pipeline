@@ -1,0 +1,14 @@
+USER-SUPPLIED VALUES:
+USER-SUPPLIED VALUES: null
+grafana:
+  env:
+    GF_SERVER_ROOT_URL: https://grafana.swipebay.tech
+prometheus:
+  prometheusSpec:
+    additionalScrapeConfigs:
+    - job_name: nestjs-backend
+      metrics_path: /metrics
+      scrape_interval: 15s
+      static_configs:
+      - targets:
+        - backend-service.backend.svc.cluster.local:3000

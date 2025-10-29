@@ -1,0 +1,63 @@
+Cert-Manager is a Kubernetes add-on that automates the management and issuance of TLS/SSL certificates. It ensures that all applications running inside your Kubernetes cluster can communicate securely over HTTPS without requiring manual certificate setup or renewal.
+
+It works by integrating with trusted Certificate Authorities (CAs) like Let’s Encrypt, HashiCorp Vault, or other custom issuers. The main job of cert-manager is to automatically request, issue, renew, and store TLS certificates as Kubernetes Secrets, so they can be used by Ingress resources or any service that needs secure communication.
+
+### Why We Use Cert-Manager
+The main purpose of cert-manager is to provide an automated, reliable, and repeatable way to manage TLS certificates inside Kubernetes. Instead of manually generating certificates, cert-manager takes care of:
+1. Requesting the certificate from a Certificate Authority (CA).
+2. Validating that you own the domain (for example, backend.swipebay.tech).
+3. Receiving and storing the signed certificate.
+4. Automatically renewing it before it expires.
+
+This helps ensure that all external connections to your services are encrypted (HTTPS) and trusted by all browsers and clients.
+
+### How Cert-Manager Works
+When cert-manager is installed, it runs as a controller inside your cluster. It continuously monitors custom Kubernetes resources such as:
+- **ClusterIssuer / Issuer**: Defines which CA (e.g., Let’s Encrypt) to use for issuing certificates.
+- **Certificate**: Defines which domain should get a TLS certificate.
+- **Secret**: Stores the actual certificate and private key once issued.
+
+The process works as follows:
+1. You create a ClusterIssuer that points to a CA such as Let’s Encrypt.
+2. You annotate your Ingress with this ClusterIssuer.
+3. cert-manager requests a certificate for your domain.
+4. Let’s Encrypt verifies ownership of your domain via an HTTP challenge.
+5. Once verified, Let’s Encrypt issues a certificate.
+6. cert-manager stores it in a Kubernetes Secret (e.g., `backend-tls-secret`).
+7. Your Ingress automatically uses this Secret to enable HTTPS.
+
+### Example Workflow
+1. Install cert-manager in the cluster using Helm or YAML manifests.
+2. Create a ClusterIssuer that connects to Let’s Encrypt:
+   - Staging server for testing.
+   - Production server for real certificates.
+3. Annotate your Ingress with:
+
+4. Add the `tls:` section in your Ingress spec:
+
+5. cert-manager automatically requests the certificate, performs validation, and stores it.
+6. The Ingress starts serving traffic over HTTPS using the issued certificate.
+
+### Integration with Let’s Encrypt
+Let’s Encrypt is a free and globally trusted Certificate Authority. It provides TLS certificates using an open standard called **ACME (Automated Certificate Management Environment)**. cert-manager communicates with Let’s Encrypt via the ACME protocol to:
+- Request a certificate.
+- Prove domain ownership (HTTP-01 challenge).
+- Download the signed certificate.
+- Renew it automatically before expiration (usually every 90 days).
+
+### Key Components
+- **Issuer / ClusterIssuer**: Defines how and where to request the certificate.
+- **Certificate**: Specifies which domain(s) need the certificate.
+- **Secret**: Stores the issued certificate and key.
+- **Ingress**: Uses the Secret to enable HTTPS for your application.
+
+### Benefits
+- Full automation of TLS management.
+- Seamless integration with Kubernetes Ingress controllers (NGINX, Traefik).
+- No need for manual certificate renewal.
+- Prevents “Not Secure” warnings in browsers.
+- Ensures continuous availability with automatic renewals.
+
+### Summary
+Cert-Manager provides a production-grade solution to manage HTTPS certificates in Kubernetes. It removes the complexity of SSL management by handling issuance, verification, storage, and renewal automatically. With cert-manager and Let’s Encrypt integration, you can expose your services securely using real, trusted TLS certificates recognized by all browsers.
+
